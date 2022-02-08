@@ -3,20 +3,101 @@
 # Copyright (c) 2022
 # author: Euraxluo
 
+
 import abc
 import builtins
 import numpy as np
 import inspect
 import functools
+from abc import ABCMeta, abstractmethod
 from typing import *
 from .logger import *
 
 Number = Union[builtins.int, builtins.float, builtins.bool]
 
 
+@runtime_checkable
+class Module(Protocol):
+    """
+    一种协议,即实现了"forward", "backward", "__call__" 任意一个函数的类,可视为Module类
+    Module类,主要用于Optimizer 的 params解析
+    """
+
+    __slots__ = ()
+
+    def forward(self, *args, **kwargs):
+        ...
+
+    def backward(self, *args, **kwargs):
+        ...
+
+    def __call__(self, *args, **kwargs):
+        ...
+
+    @staticmethod
+    def _check_methods(C, *methods):
+        mro = C.__mro__
+        for B in mro:
+            for method in methods:
+                if method in B.__dict__:
+                    if B.__dict__[method] is None:
+                        return NotImplemented
+                    break
+            else:
+                break
+        else:
+            return NotImplemented
+        return True
+
+    @classmethod
+    def __subclasshook__(cls, C):
+        if cls is Module:
+            return Module._check_methods(C, "forward", "backward", "__call__")
+        return NotImplemented
+
+
+class Forward(Protocol):
+    """
+    一种协议,即实现了"forward" 函数的类,可视为Forward,多为Network类
+    """
+
+    def forward(self, *args, **kwargs):
+        ...
+
+
+class Backward(Protocol):
+    """
+    一种协议,即实现了"backward" 函数的类,可视为Backward,多为Tensor类
+    """
+
+    def backward(self, *args, **kwargs):
+        ...
+
+
+class Context(Protocol):
+    """
+    一种协议,即实现了"forward" 和 "backward"类,即Function的实例化对象,可视为Context类
+    """
+
+    def forward(self, *args, **kwargs):
+        ...
+
+    def backward(self, *args, **kwargs):
+        ...
+
+
+class Layer(Protocol):
+    """
+    一种协议,即实现了"__call__" 函数的类,可视为Layer类
+    """
+
+    def __call__(self, *args, **kwargs):
+        ...
+
+
 class Function:
     """
-    An instantiation of the Function is the Context
+    An instantiation of the Function is the `Context` class
     """
     name: str = 'Function'
 
@@ -89,6 +170,8 @@ from .ops import *
 
 
 class Tensor(object):
+    training = False
+
     def __init__(self, data: Union[np.ndarray, np.float], requires_grad=True):
         self.data: Union[np.ndarray, np.float] = data
         self.grad = None
@@ -404,8 +487,11 @@ class Tensor(object):
 
     # 数据操作
     def dropout(self, p=0.5):
-        _mask = np.asarray(np.random.binomial(1, 1.0 - p, size=self.shape), dtype=self.dtype)
-        return self * Tensor(_mask, requires_grad=False) * (1 / (1.0 - p))
+        if Tensor.training:
+            _mask = np.asarray(np.random.binomial(1, 1.0 - p, size=self.shape), dtype=self.dtype)
+            return self * Tensor(_mask, requires_grad=False) * (1 / (1.0 - p))
+        else:
+            return self
 
     def pad(self, padding: Union[Tuple, List, int]):
         """

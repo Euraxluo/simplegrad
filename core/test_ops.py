@@ -196,6 +196,7 @@ class TestOps(TestCase):
         op_test([(45, 65)], lambda x: torch.nn.functional.log_softmax(x, dim=1), Tensor.logsoftmax)
 
     def test_dropout(self):
+        Tensor.training = True
         n, rate = 1_000_000, 0.1
         w = Tensor.ones(n).dropout(rate)
         non_zeros = np.count_nonzero(w.data)

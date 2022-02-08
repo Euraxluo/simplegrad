@@ -203,7 +203,7 @@ class Conv2D(Function):
         ret = np.zeros((bs, self.groups, oy, ox, rcout), dtype=x.dtype)
         for g in range(self.groups):
             # ijYXyx,kjyx -> iYXk ->ikYX
-            ret[:, g] += np.tensordot(tx[:, g], tw[g], ((1, 4, 5), (1, 2, 3)))
+            ret[:, g] = ret[:, g] + np.tensordot(tx[:, g], tw[g], ((1, 4, 5), (1, 2, 3)))
         return np.moveaxis(ret, 4, 2).reshape(bs, cout, oy, ox)
 
     def backward(self, grad_output):
@@ -218,7 +218,7 @@ class Conv2D(Function):
         gdw = np.zeros((self.groups, rcout, cin, H, W), dtype=tx.dtype)
         for g in range(self.groups):
             # 'ikYX,ijYXyx -> kjyx'
-            gdw[g] += np.tensordot(ggg[:, g], tx[:, g], ((0, 2, 3), (0, 2, 3)))
+            gdw[g] = gdw[g] + np.tensordot(ggg[:, g], tx[:, g], ((0, 2, 3), (0, 2, 3)))
 
         # needs to be optimized
         gdx = np.zeros((bs, self.groups, cin, OY, OX), dtype=tx.dtype)
@@ -228,6 +228,6 @@ class Conv2D(Function):
             # gdx[:,:,: , iY:iY+H, iX:iX+W] += np.einsum('igk,gkjyx->igjyx', ggg[:,:,:,Y,X], tw)
             for g in range(self.groups):
                 tg = np.dot(ggg[:, g, :, Y, X].reshape(bs, -1), tw[g].reshape(rcout, -1))
-                gdx[:, g, :, iY:iY + H, iX:iX + W] += tg.reshape((bs, cin, H, W))
+                gdx[:, g, :, iY:iY + H, iX:iX + W] = gdx[:, g, :, iY:iY + H, iX:iX + W] + tg.reshape((bs, cin, H, W))
 
         return gdx.reshape((bs, self.groups * cin, OY, OX)), gdw.reshape((self.groups * rcout, cin, H, W))

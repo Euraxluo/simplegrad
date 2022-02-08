@@ -2,18 +2,41 @@
 # Time: 2022-01-29 17:01
 # Copyright (c) 2022
 # author: Euraxluo
-from .tensor import Tensor
+from abc import abstractmethod
+from .tensor import Tensor, Module, Context, Forward, Backward, Layer
+from typing import *
 
 
 # https://www.cnblogs.com/guoyaohua/p/8542554.html
 
 class Optimizer:
-    def __init__(self, params):
-        self.params = [x for x in params if x.requires_grad]
+    def __init__(self, params: Union[list, Tensor, Backward, Forward, Layer, Context, Module]):
+        self.params = Optimizer.get_parameters(params)
 
     def zero_grad(self):
         for param in self.params:
             param.grad = None
+
+    @staticmethod
+    def get_parameters(params):
+        parameters = []
+        if isinstance(params, Tensor) and params.requires_grad:
+            parameters.append(params)
+        elif isinstance(params, list):
+            for x in params:
+                parameters.extend(Optimizer.get_parameters(x))
+        elif hasattr(params, '__dict__') and isinstance(params, Module):
+            for v in params.__dict__.values():
+                parameters.extend(Optimizer.get_parameters(v))
+        return parameters
+
+    @abstractmethod
+    def step(self):
+        """
+        使用梯度下降法利用梯度更新进行优化
+        :return:
+        """
+        ...
 
 
 class SGD(Optimizer):
