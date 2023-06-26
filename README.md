@@ -1,3 +1,6 @@
+# Learn linear algebra,Review neural networks, a library of realized neural networks
+
+
 Simplegrad
 ```python
 from core.tensor import *
